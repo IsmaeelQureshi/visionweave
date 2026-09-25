@@ -1,1 +1,1 @@
-"""Local REST API and background jobs for the video analysis workspace."""
+"""Local REST API and background jobs for the synthetic frame analysis workspace."""

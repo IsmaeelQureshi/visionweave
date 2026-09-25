@@ -1,4 +1,4 @@
-// The browser is a client of the Python API; inference stays in the backend.
+// The browser is a client of the Python API; frame processing stays in the backend.
 const $ = (id) => document.getElementById(id);
 const terminal = new Set(['completed', 'failed', 'cancelled']);
 const state = {job: null, jobs: [], preview: 0, offset: 0, total: 0,

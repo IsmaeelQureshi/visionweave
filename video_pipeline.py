@@ -77,7 +77,7 @@ class Prediction:
 
 
 class Detector(Protocol):
-    """Implement this interface to connect an independently initialized model."""
+    """Contract for adapters that return detections in prepared-frame coordinates."""
 
     name: str
     input_size: int
@@ -109,7 +109,7 @@ class DemoBoxDetector:
     """Localize the single red region in the synthetic scene; no ML inference."""
 
     name = "demo_box"
-    input_size = 320  # Arbitrary demo setting; each adapter owns its input size.
+    input_size = 320  # Each adapter owns its input size.
 
     def predict(self, frame: PreparedFrame) -> Sequence[Prediction]:
         r, g, b = frame.rgb.transpose(2, 0, 1)
@@ -137,15 +137,7 @@ class DemoPointDetector:
 
 
 def build_detectors() -> tuple[Detector, ...]:
-    """MODEL INTEGRATION: replace these demo adapters with your own adapters.
-
-    Load your model once in its adapter constructor. In predict(), apply any
-    model-specific normalization to frame.tensor, run inference, and decode
-    results into Prediction objects in frame.rgb canvas coordinates. If your
-    model emits normalized coordinates, multiply by input_size here. Configure
-    your framework's evaluation/inference mode inside the adapter. Keep model
-    assets outside this repository. The pipeline needs no framework imports.
-    """
+    """Create the independent red-region and green-marker detectors."""
     return DemoBoxDetector(), DemoPointDetector()
 
 

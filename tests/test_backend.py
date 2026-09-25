@@ -150,7 +150,6 @@ class BackendTests(unittest.TestCase):
         finally:
             reopened.close()
 
-
     def test_failed_adapter_never_exposes_partial_csv(self):
         with patch("backend.jobs.build_detectors", side_effect=RuntimeError("test failure")):
             job = self.store.create(max_frames=3)

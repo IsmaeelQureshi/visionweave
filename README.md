@@ -6,7 +6,7 @@ VisionWeave analyzes a generated scene containing a moving red rectangle and gre
 
 🔗 **Live Demo:** [Hosted on Vercel](https://visionweave-zeta.vercel.app/)
 
-The detectors use simple color rules, **not trained AI models**. Both versions use only the generated scene; video uploads and video-file decoding are not supported.
+The project demonstrates background processing, coordinate conversion, persistent job history, and interactive result inspection. Its two detectors use deterministic color thresholds on generated frames; no trained models or video uploads are included.
 
 ---
 
@@ -17,6 +17,19 @@ The detectors use simple color rules, **not trained AI models**. Both versions u
 - Play previews and browse paginated results
 - Export pixel coordinates, normalized coordinates, and missing detections to CSV
 - Keep saved runs in the local app, or up to eight temporary runs in the browser demo
+
+## How It Works
+
+The scene contains a red rectangle and a green marker that disappear on different schedules. One detector finds the bounding box of red pixels; the other finds the centroid of green pixels. When a shape is absent, its detector emits an empty result.
+
+A default run processes **120 frames**, producing **100 box detections, 80 point detections, and 60 empty rows**: 240 CSV rows in total. Confidence fields stay blank because color thresholds do not produce probability scores.
+
+| Edition | Processing | History |
+| --- | --- | --- |
+| Local app | Browser → Python API → background worker → detectors | SQLite metadata, JPEG previews, and CSV files |
+| Hosted demo | Browser → Web Worker → JavaScript detectors | Page memory, cleared on reload |
+
+The detectors operate independently: they do not associate the marker with the rectangle or track objects between frames. Multiple same-color regions would be combined into one box or centroid.
 
 ## 🛠 Tech Stack
 
@@ -42,7 +55,7 @@ python -m backend.server
 
 Open **http://127.0.0.1:8000** and click **Run analysis**. Press **Ctrl+C** to stop the server. Results and history are stored under `results/workspace/`.
 
-The Python server is for local, single-user development. It processes one job at a time and accepts at most three unfinished jobs.
+The Python server is for local, single-user development. It processes one job at a time and accepts at most three unfinished jobs. Interrupted runs are marked failed after a restart. Completed CSVs are published only after processing succeeds.
 
 To export directly from the command line:
 

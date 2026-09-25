@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from video_pipeline import (
-    DemoBoxDetector, Frame, Prediction, build_detectors, demo_frames,
+    DemoBoxDetector, Prediction, build_detectors, demo_frames,
     main, prediction_row, prepare_frame, process_frames,
 )
 
