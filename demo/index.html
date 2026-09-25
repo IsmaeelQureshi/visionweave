@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Try VisionWeave: an interactive browser demo of frame analysis, box and point detections, and CSV export.">
+  <title>VisionWeave · Interactive Demo</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./app.css">
+  <script src="./app.js" type="module"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="VisionWeave home"><span class="brand-mark" aria-hidden="true">V<span>▸</span></span><strong>VisionWeave</strong><span class="brand-divider"></span><span class="brand-detail">VIDEO ANALYSIS</span></a>
+    <span class="local-badge">Interactive demo</span>
+  </header>
+  <main class="workspace">
+    <aside class="sidebar" aria-label="Analysis controls">
+      <section class="setup">
+        <p class="eyebrow">01 / INPUT</p>
+        <h1>From video<br>to structured data.</h1>
+        <p class="intro">Explore a moving scene, inspect detections, and export your results. Runs in your browser.</p>
+        <form id="run-form">
+          <input type="radio" name="source" value="demo" checked hidden>
+          <div id="demo-input" class="input-card">
+            <div class="scene-label"><span class="shape-icon" aria-hidden="true">▣ ◉</span><span class="tag">READY TO RUN</span></div>
+            <strong>Moving shapes</strong>
+            <p>A red region and a green marker. Includes frames with missing detections.</p>
+          </div>
+
+          <div class="form-grid">
+            <label for="frame-limit">Frame limit<input id="frame-limit" type="number" min="1" max="600" value="120" required></label>
+            <input id="stride" type="hidden" value="1">
+          </div>
+          <button class="button primary" id="run-button" type="submit"><span>Run analysis</span><span aria-hidden="true">↗</span></button>
+          <progress id="upload-progress" value="0" max="100" hidden aria-label="Upload progress"></progress>
+          <p id="error" class="error" role="alert" hidden></p>
+        </form>
+        <div class="adapter-note"><span class="note-icon" aria-hidden="true">i</span><p><strong>Demo adapters enabled</strong><br>Two color-based detectors analyze generated pixels. This demo does not use trained AI models.</p></div>
+      </section>
+      <section class="history-section">
+        <div class="section-label"><h2>This session</h2><button class="text-button" id="refresh" type="button" aria-label="Refresh recent runs">Refresh</button></div>
+        <div id="history"><p class="muted small">No runs yet.</p></div>
+      </section>
+      <footer class="sidebar-footer">Browser edition of the Python project.<br>Runs clear when you reload this page.</footer>
+    </aside>
+    <div class="main-panel">
+      <section class="run-heading">
+        <div><p class="eyebrow">02 / ANALYZE</p><h2 id="run-title">Analysis workspace</h2><p id="run-subtitle" class="muted">Try the synthetic scene. No uploads or installation needed.</p></div>
+        <span id="status" class="status idle" role="status">Ready</span>
+      </section>
+      <div id="progress-panel" class="progress-panel" hidden>
+        <div><span id="progress-label" aria-live="polite">Queued</span><button id="cancel" class="text-button" type="button">Cancel run</button></div>
+        <progress id="job-progress" value="0" max="120" aria-label="Frames processed within frame limit"></progress>
+      </div>
+      <div class="metrics" aria-label="Run statistics">
+        <div><span>Frames processed</span><strong id="metric-frames">—</strong></div>
+        <div><span>Box detections</span><strong id="metric-boxes">—</strong><span class="metric-marker coral"></span></div>
+        <div><span>Point detections</span><strong id="metric-points">—</strong><span class="metric-marker mint"></span></div>
+        <div><span>Result rows</span><strong id="metric-rows">—</strong></div>
+      </div>
+      <section class="viewer-card" aria-labelledby="viewer-heading">
+        <div class="viewer-toolbar"><h3 id="viewer-heading">Frame inspector</h3><div class="overlay-options"><label><input type="checkbox" id="show-boxes" checked><span class="legend coral"></span>Boxes</label><label><input type="checkbox" id="show-points" checked><span class="legend mint"></span>Points</label></div></div>
+        <div class="canvas-wrap" id="canvas-wrap">
+          <div id="viewer-empty" class="viewer-empty"><div class="viewfinder" aria-hidden="true">＋</div><h3>Your next frame starts here.</h3><p>Run the demo to see both adapters in action.</p><button id="quick-demo" class="button demo-button" type="button">Try the synthetic demo <span aria-hidden="true">↗</span></button></div>
+          <canvas id="frame-canvas" width="640" height="360" hidden aria-label="Video frame with box and point prediction overlays"></canvas>
+          <div id="frame-caption" class="frame-caption" hidden></div>
+        </div>
+        <div class="playback"><button id="play" class="icon-button" type="button" disabled aria-label="Play sampled frames">▶</button><label for="frame-slider" class="sr-only">Preview frame</label><input type="range" id="frame-slider" min="0" max="0" value="0" disabled><span id="frame-counter">No frames yet</span></div>
+        <div class="viewer-footer"><span id="preview-note">Up to 120 sampled frames per run</span><span>Source coordinates · RGB</span></div>
+      </section>
+      <section class="results-card" aria-labelledby="results-heading">
+        <div class="results-heading"><div><p class="eyebrow">03 / EXPORT</p><h3 id="results-heading">Structured results</h3></div><a id="download" class="button secondary disabled" aria-disabled="true" tabindex="-1">Download CSV <span aria-hidden="true">↓</span></a></div>
+        <p class="results-description">Independent rows for each adapter. Empty detections stay visible in the data.</p>
+        <div class="table-wrap"><table><thead><tr><th scope="col">Frame</th><th scope="col">Time</th><th scope="col">Adapter</th><th scope="col">Type</th><th scope="col">Label</th><th scope="col">Position (x, y)</th></tr></thead><tbody id="results-body"><tr><td colspan="6" class="empty-table">Results will appear when your analysis is complete.</td></tr></tbody></table></div>
+        <div class="table-footer"><span id="result-count">0 results</span><div><button id="previous" class="text-button" disabled type="button">Previous</button><button id="next" class="text-button" disabled type="button">Next</button></div></div>
+      </section>
+      <p class="workspace-footer">Two adapters. One consistent format.<span>VisionWeave / Browser demo</span></p>
+    </div>
+  </main>
+</body>
+</html>
