@@ -6,7 +6,6 @@ Run from the repository root: python -m backend.server
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import logging
 import mimetypes
@@ -17,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from backend.jobs import JobError, JobStore, MAX_UPLOAD, bounded_int
+from backend.jobs import JobError, JobStore, bounded_int
 
 WEB = Path(__file__).resolve().parents[1] / "web"
 ASSETS = {"/": "index.html", "/app.js": "app.js", "/app.css": "app.css", "/favicon.svg": "favicon.svg"}
@@ -110,7 +109,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def read_length(self, maximum):
         if self.headers.get("Transfer-Encoding"):
-            raise APIError(400, "Chunked uploads are not supported.")
+            raise APIError(400, "Chunked request bodies are not supported.")
         try:
             length = int(self.headers.get("Content-Length", "-1"))
         except ValueError:
@@ -118,7 +117,7 @@ class Handler(BaseHTTPRequestHandler):
         if length < 1:
             raise APIError(400, "Request body is empty.")
         if length > maximum:
-            raise APIError(413, "Upload exceeds the 100 MB limit." if maximum == MAX_UPLOAD else "Request body is too large.")
+            raise APIError(413, "Request body is too large.")
         return length
 
     def get_route(self, path, query):
@@ -126,7 +125,7 @@ class Handler(BaseHTTPRequestHandler):
         if path in ASSETS:
             return self.send_file(WEB / ASSETS[path])
         if path == "/api/health":
-            return self.send_json(200, {"status": "ok", "video_supported": importlib.util.find_spec("cv2") is not None, "max_upload_bytes": MAX_UPLOAD})
+            return self.send_json(200, {"status": "ok"})
         if path == "/api/jobs":
             return self.send_json(200, {"jobs": [{k: v for k, v in job.items() if k != "previews"} for job in store.list()]})
         match = re.fullmatch(r"/api/jobs/([a-f0-9]{32})(?:/(results|csv|frames/(\d+)\.jpg))?", path)
@@ -163,33 +162,7 @@ class Handler(BaseHTTPRequestHandler):
             job = store.create(max_frames=data.get("max_frames", 120))
             store.submit(job["id"])
             return self.send_json(202, store.get(job["id"]))
-        if path != "/api/jobs/video":
-            raise KeyError("Unknown route")
-        if self.headers.get("Content-Type") != "application/octet-stream":
-            raise APIError(415, "Send the video file as an application/octet-stream body.")
-        length = self.read_length(MAX_UPLOAD)
-        name = query.get("name", ["video.mp4"])[0]
-        if Path(name).suffix.lower() not in {".mp4", ".mov", ".avi", ".webm", ".mkv"}:
-            raise APIError(400, "Choose an MP4, MOV, AVI, WebM or MKV file.")
-        job = store.create(kind="video", name=Path(name).name,
-                           max_frames=int(query.get("max_frames", ["120"])[0]),
-                           stride=int(query.get("stride", ["1"])[0]))
-        directory = store.root / job["id"]
-        try:
-            with (directory / "source.video").open("xb") as handle:
-                remaining = length
-                while remaining:
-                    chunk = self.rfile.read(min(1024 * 1024, remaining))
-                    if not chunk:
-                        raise APIError(400, "Upload ended before the complete file arrived.")
-                    handle.write(chunk)
-                    remaining -= len(chunk)
-            store.submit(job["id"])
-        except Exception:
-            store.cleanup_incomplete(job["id"])
-            store.update(job["id"], status="failed", error="The upload did not complete. Please retry.")
-            raise
-        self.send_json(202, store.get(job["id"]))
+        raise KeyError("Unknown route")
 
 
 def main():

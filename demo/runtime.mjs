@@ -14,7 +14,7 @@ export async function request(path, options = {}) {
     const id = crypto.randomUUID();
     const worker = new Worker(new URL('./worker.mjs', import.meta.url), {type:'module'});
     const job = {id,name:'Synthetic shapes',kind:'demo',status:'running',created_at:Date.now()/1000,max_frames,
-      stride:1,frames:0,rows:0,boxes:0,points:0,empty:0,elapsed_sec:0,fps:0,previews:[],error:null};
+      frames:0,rows:0,boxes:0,points:0,empty:0,elapsed_sec:0,fps:0,previews:[],error:null};
     // Retain only eight runs, with bounded preview metadata and no stored images.
     if (jobs.size >= 8) {
       const oldest = jobs.keys().next().value;

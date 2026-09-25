@@ -1,17 +1,15 @@
-"""Behavior checks for geometry, orchestration, output safety, and video input."""
+"""Behavior checks for geometry, orchestration, and output safety."""
 
 import csv
-import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import numpy as np
 
 from video_pipeline import (
     DemoBoxDetector, Frame, Prediction, build_detectors, demo_frames,
-    main, prediction_row, prepare_frame, process_frames, video_frames,
+    main, prediction_row, prepare_frame, process_frames,
 )
 
 
@@ -106,57 +104,11 @@ class PipelineTests(unittest.TestCase):
                 prediction_row(frame, "test", 0, prediction, transform)
 
     def test_cli_demo_and_invalid_limits(self):
-        self.assertEqual(main(["--demo", "--max-frames", "3", "--output", str(self.output)]), 0)
+        self.assertEqual(main(["--max-frames", "3", "--output", str(self.output)]), 0)
         self.assertEqual(len(self.read_rows()), 6)
         with self.assertRaises(SystemExit) as exc:
-            main(["--demo", "--max-frames", "0"])
+            main(["--max-frames", "0"])
         self.assertEqual(exc.exception.code, 2)
-
-    def test_video_sampling_unknown_fps_and_capture_cleanup(self):
-        # Test source behavior without depending on a platform video decoder.
-        class Capture:
-            released = False
-            reads = 0
-
-            def isOpened(self): return True
-            def get(self, _): return float("nan")
-            def release(self): self.released = True
-            def read(self):
-                self.reads += 1
-                return True, np.zeros((12, 20, 3), np.uint8)
-
-        class FakeCV2:
-            CAP_PROP_FPS = 5
-            COLOR_BGR2RGB = 4
-            def VideoCapture(self, _): return capture
-            def cvtColor(self, array, _): return array[:, :, ::-1]
-
-        capture = Capture()
-        video = self.output.with_suffix(".avi")
-        video.touch()
-        with patch.dict("sys.modules", {"cv2": FakeCV2()}):
-            frames = list(video_frames(video, stride=3, max_frames=2))
-        self.assertEqual([f.index for f in frames], [0, 3])
-        self.assertTrue(all(f.timestamp_sec is None for f in frames))
-        self.assertTrue(capture.released)
-        self.assertEqual(capture.reads, 4)
-
-    @unittest.skipUnless(importlib.util.find_spec("cv2"), "optional OpenCV dependency is absent")
-    def test_real_video_decode_and_csv(self):
-        import cv2
-        video = self.output.with_suffix(".avi")
-        writer = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"MJPG"), 30, (640, 360))
-        self.assertTrue(writer.isOpened(), "MJPEG encoder must be available")
-        try:
-            for frame in demo_frames(8):
-                writer.write(cv2.cvtColor(frame.rgb, cv2.COLOR_RGB2BGR))
-        finally:
-            writer.release()
-        frames = list(video_frames(video, stride=2, max_frames=3))
-        self.assertEqual([f.index for f in frames], [0, 2, 4])
-        self.assertAlmostEqual(frames[-1].timestamp_sec, 4 / 30)
-        self.assertEqual(process_frames(frames, build_detectors(), self.output), (3, 6))
-        self.assertEqual({r["kind"] for r in self.read_rows()}, {"box", "point"})
 
 
 if __name__ == "__main__":

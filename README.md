@@ -1,177 +1,89 @@
 # 🎥 VisionWeave
 
-*A video analysis workspace with an interactive browser demo, frame inspection, and structured CSV export*
+*A synthetic frame-analysis workspace with interactive previews and CSV export*
 
-VisionWeave lets users **run video analysis, inspect frame-by-frame detections, and export structured results**. It includes a full-stack local application built with a **Python backend** and a **JavaScript frontend**, plus a standalone browser demo ready for static hosting.
-
-The included detectors use **deterministic color rules on synthetic shapes**, not trained AI models. They demonstrate the analysis workflow rather than general object-recognition accuracy.
+VisionWeave analyzes a generated scene containing a moving red rectangle and green marker. Inspect detections frame by frame, toggle overlays, and download the results.
 
 🔗 **Live Demo:** [Hosted on Vercel](https://visionweave-zeta.vercel.app/)
 
----
-
-## 🚀 Key Features
-
-- **Interactive Browser Demo** → Analyze a generated scene directly in your browser, with no installation or uploads
-- **Synthetic Analysis** → Run the generated scene through the local Python pipeline
-- **Frame Inspector** → Scrub through sampled frames and play previews with independent box and point overlays
-- **Analysis Controls** → Set frame limits, monitor processing progress, and cancel active runs
-- **Structured Results** → Browse paginated detections with source coordinates, normalized coordinates, and explicit empty results
-- **CSV Export** → Download complete results for further analysis
-- **Run History** → Revisit saved runs in the local app; the browser demo retains its latest eight runs until reload
-- **Extensible Pipeline** → Connect custom detectors through the Python adapter interface
+The detectors use simple color rules, **not trained AI models**. Both versions use only the generated scene; video uploads and video-file decoding are not supported.
 
 ---
+
+## 🚀 Features
+
+- Analyze up to 600 synthetic frames with progress and cancellation
+- Inspect up to 120 frame previews with box and point overlays
+- Play previews and browse paginated results
+- Export pixel coordinates, normalized coordinates, and missing detections to CSV
+- Keep saved runs in the local app, or up to eight temporary runs in the browser demo
 
 ## 🛠 Tech Stack
 
-**Backend — Local Application**
+| Component | Technologies |
+| --- | --- |
+| Local backend | Python, SQLite, NumPy, Pillow |
+| Interface | JavaScript, HTML, CSS, Canvas |
+| Browser processing | JavaScript Web Worker |
+| Hosting | Vercel, browser demo only |
+| Tests | Python unittest, Node.js test runner, GitHub Actions |
 
-- Language: Python 3.10+
-- API: Python standard-library HTTP server
-- Database: SQLite
-- Processing: NumPy and Pillow
-- Video Decoding: OpenCV — optional
-- Background Jobs: ThreadPoolExecutor
-
-**Frontend**
-
-- Languages: JavaScript, HTML, and CSS
-- Frame Rendering: HTML Canvas
-- Styling: Responsive CSS
-- Browser Demo Processing: Web Workers
-- CSV Downloads: Browser Blob API
-- Build Tools: None required
-
-**Testing**
-
-- Python: unittest
-- JavaScript: Node.js test runner
-- CI: GitHub Actions
-
----
-
-## 🌐 Deployment
-
-**Browser Demo → Hosted on Vercel**
-
-The `demo/` folder is a standalone static website. It generates frames and runs color-based detection in the visitor’s browser, without a Python backend, database, or API keys.
-
-To deploy:
-
-1. Import this repository into Vercel.
-2. Set **Root Directory** to `demo`.
-3. Select **Other** as the Framework Preset.
-4. Deploy using the included `demo/vercel.json`, which specifies no build command and serves the directory directly.
-
-Configure Deployment Protection for the audience you want. A private GitHub repository does not automatically make the deployed website private.
-
-**Full-Stack Application → Local Development**
-
-The Python app runs on your computer and stores its job history locally. Its development server is not configured for public hosting. An online version with uploads would need production serving, access controls, storage management, and appropriate worker infrastructure.
-
-The browser demo detects at source resolution; the Python adapters resize their inputs. Coordinates can differ slightly between the two editions. Neither edition includes trained model weights.
-
----
-
-## 🖥 Local Development Setup
-
-### 1️⃣ Clone the Repository
+## 🖥 Run Locally
 
 ```bash
 git clone https://github.com/IsmaeelQureshi/visionweave.git
 cd visionweave
-```
-
-### 2️⃣ Run the Full-Stack Application
-
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Windows PowerShell:
-# .venv\Scripts\Activate.ps1
-
+# Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m backend.server
 ```
 
-Open **http://127.0.0.1:8000** and click **Run analysis** to try the synthetic scene.
+Open **http://127.0.0.1:8000** and click **Run analysis**. Press **Ctrl+C** to stop the server. Results and history are stored under `results/workspace/`.
 
-The web interface accepts only the synthetic scene. Advanced video-file processing remains available through the command-line pipeline below.
+The Python server is for local, single-user development. It processes one job at a time and accepts at most three unfinished jobs.
 
-### 3️⃣ Run the Standalone Browser Demo
+To export directly from the command line:
 
-From the repository root:
+```bash
+python video_pipeline.py --max-frames 120 --output results/demo.csv
+```
+
+Existing output is protected; use `--overwrite` to replace it after a successful run.
+
+## 🌐 Browser Demo
+
+The `demo/` folder runs entirely in the browser. It needs no backend, database, API keys, or build step. Its session history clears on reload.
+
+To preview it locally:
 
 ```bash
 python3 -m http.server 8001 --bind 127.0.0.1 --directory demo
 ```
 
-Open **http://127.0.0.1:8001**. This server only serves the static files; analysis runs in the browser. No Python packages or Node installation are needed for the preview.
+Open **http://127.0.0.1:8001**. For Vercel, import the repository with **Root Directory: `demo`** and **Framework Preset: Other**. The included `vercel.json` handles the remaining build settings.
 
-Press **Ctrl+C** in the terminal to stop either server.
-
----
-
-## ⚙️ Command-Line Usage
-
-Run the shared Python pipeline without the web interface:
-
-```bash
-# Analyze the synthetic scene
-python video_pipeline.py --demo --output results/demo.csv
-
-# Optional command-line video processing
-python -m pip install -r requirements-video.txt
-python video_pipeline.py --video your_video.mp4 --stride 3 --max-frames 100 --output results/video.csv
-```
-
-Existing output files are protected unless you pass `--overwrite`.
-
----
+The browser detectors inspect source-resolution pixels. Python resizes each adapter's input and converts detections back to source coordinates, so the two versions can produce slightly different positions. Preview playback uses a fixed inspection speed, not source timing.
 
 ## 📁 Project Structure
 
 ```text
-visionweave/
-├── backend/           Python API, background jobs, and SQLite persistence
-├── web/               Frontend for the local Python application
-├── demo/              Standalone browser demo and Vercel configuration
-├── tests/             Python tests and browser engine tests
-├── examples/          Synthetic sample CSV
-├── assets/            Synthetic demo animation
-├── video_pipeline.py  Shared Python processing pipeline and CLI
-└── requirements.txt   Core Python dependencies
+backend/           Local API, background jobs, and saved history
+web/               Interface for the Python app
+demo/              Standalone browser demo and Vercel settings
+tests/             Pipeline, API, and browser detector tests
+video_pipeline.py  Synthetic scene, detectors, coordinate conversion, and CSV
+requirements.txt   Python dependencies
 ```
 
----
-
-## ✅ Run Tests
+## ✅ Tests
 
 ```bash
-# Python pipeline and backend tests
 python -m unittest discover -s tests -v
-
-# Browser engine tests — requires Node.js
 node --test tests/browser/engine.test.mjs
-
-# Frontend syntax checks
 node --check web/app.js
 node --check demo/app.js
 ```
 
-The tests cover coordinate handling, missing detections, CSV output, job lifecycle, and API validation. Optional video integration tests require OpenCV. See [verification notes](VERIFICATION.md) for earlier development checks.
-
----
-
-## 📝 Usage Notes
-
-- **Synthetic scene:** A moving red region and green marker disappear on different schedules to demonstrate missing detections.
-- **Local limits:** Uploads are capped at 100 MB, runs at 600 sampled frames, and previews at 120 per run.
-- **Local storage:** Results and job history remain under `results/workspace/`. Uploaded source videos are deleted after processing, cancellation, or failure.
-- **Browser history:** Up to eight runs are retained in page memory and cleared on reload.
-- **Playback:** Preview playback uses a fixed inspection speed rather than the original video timing.
-- **Custom models:** Implement the `Detector` protocol and register adapters in `build_detectors()` inside `video_pipeline.py`.
-
-See the [browser demo README](demo/README.md) for more details about the standalone edition.
+GitHub Actions runs these checks, an HTTP smoke test, and a command-line demo. Tests cover coordinate conversion, missing detections, CSV output, validation, cancellation, and saved history.

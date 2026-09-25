@@ -1,7 +1,6 @@
 """Exercise real API handlers and background jobs without needing a listening port."""
 
 import csv
-import importlib.util
 import io
 import json
 import tempfile
@@ -12,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from backend.jobs import JobError, JobStore, MAX_UPLOAD
+from backend.jobs import JobError, JobStore
 from backend.server import Handler
 from video_pipeline import demo_frames
 
@@ -103,6 +102,10 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(self.api("/api/jobs/demo", "POST", {"max_frames": 1}, headers)[0], 403)
         self.assertEqual(self.store.list(), [])
 
+    def test_removed_video_endpoint_is_unavailable(self):
+        self.assertEqual(self.api("/api/jobs/video", "POST", body=b"video")[0], 404)
+        self.assertEqual(self.store.list(), [])
+
     def test_file_routes_cannot_escape_workspace(self):
         for path in ("/../video_pipeline.py", "/backend/server.py", "/api/jobs/../../README.md", "/results/workspace/jobs.sqlite3"):
             self.assertEqual(self.api(path)[0], 404)
@@ -147,27 +150,6 @@ class BackendTests(unittest.TestCase):
         finally:
             reopened.close()
 
-    def test_upload_size_and_incomplete_body_rejected(self):
-        headers = {"Content-Type": "application/octet-stream", "Content-Length": str(MAX_UPLOAD + 1)}
-        self.assertEqual(self.api("/api/jobs/video?name=test.mp4", "POST", headers=headers)[0], 413)
-        # Simulate decoder availability; abort before any decoding is attempted.
-        with patch("backend.jobs.importlib.util.find_spec", return_value=object()):
-            status, _, _ = self.api("/api/jobs/video?name=test.mp4", "POST", body=b"short", headers={"Content-Type": "application/octet-stream", "Content-Length": "100"})
-        self.assertEqual(status, 400)
-        job = self.store.list()[0]
-        self.assertEqual(job["status"], "failed")
-        self.assertFalse((self.store.root / job["id"] / "source.video").exists())
-
-    def test_upload_calls_pipeline_and_removes_original(self):
-        # Real raw-byte upload and job orchestration, with a synthetic decoder.
-        with patch("backend.jobs.importlib.util.find_spec", return_value=object()), patch("backend.jobs.video_frames", side_effect=lambda *args: demo_frames(4)):
-            status, body, _ = self.api("/api/jobs/video?name=clip.mp4&max_frames=4&stride=2", "POST", body=b"synthetic test bytes", headers={"Content-Type": "application/octet-stream"})
-            self.assertEqual(status, 202)
-            job = self.wait_done(json.loads(body)["id"])
-            self.store.executor.submit(lambda: None).result(timeout=5)
-        self.assertEqual(job["status"], "completed", job["error"])
-        self.assertEqual(job["rows"], 8)
-        self.assertFalse((self.store.root / job["id"] / "source.video").exists())
 
     def test_failed_adapter_never_exposes_partial_csv(self):
         with patch("backend.jobs.build_detectors", side_effect=RuntimeError("test failure")):
@@ -175,23 +157,6 @@ class BackendTests(unittest.TestCase):
             self.store.submit(job["id"])
             self.assertEqual(self.wait_done(job["id"])["status"], "failed")
         self.assertEqual(self.api(f'/api/jobs/{job["id"]}/csv')[0], 409)
-
-    @unittest.skipUnless(importlib.util.find_spec("cv2"), "optional OpenCV dependency is absent")
-    def test_real_uploaded_video_end_to_end(self):
-        import cv2
-        path = Path(self.temp.name) / "fixture.avi"
-        writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), 30, (640, 360))
-        self.assertTrue(writer.isOpened())
-        try:
-            for frame in demo_frames(8):
-                writer.write(cv2.cvtColor(frame.rgb, cv2.COLOR_RGB2BGR))
-        finally:
-            writer.release()
-        status, body, _ = self.api("/api/jobs/video?name=fixture.avi&max_frames=3&stride=2", "POST", body=path.read_bytes(), headers={"Content-Type": "application/octet-stream"})
-        self.assertEqual(status, 202)
-        job = self.wait_done(json.loads(body)["id"])
-        self.assertEqual(job["status"], "completed", job["error"])
-        self.assertEqual([p["index"] for p in job["previews"]], [0, 2, 4])
 
 
 if __name__ == "__main__":

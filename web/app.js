@@ -97,9 +97,7 @@ function renderJob(job) {
   const previousStatus = state.job?.status;
   state.job = job;
   $('run-title').textContent = job.name;
-  $('run-subtitle').textContent = job.kind === 'demo'
-    ? 'Synthetic scene · 30 FPS · two independent adapters'
-    : `Uploaded video · ${job.stride === 1 ? 'all frames' : `sampled every ${job.stride} frames`} · demo adapters`;
+  $('run-subtitle').textContent = 'Synthetic scene · 30 FPS · two independent adapters';
   $('status').textContent = job.status;
   $('status').className = `status ${job.status}`;
   for (const metric of ['frames', 'boxes', 'points', 'rows']) $('metric-' + metric).textContent = job[metric].toLocaleString();
@@ -107,7 +105,7 @@ function renderJob(job) {
   $('progress-panel').hidden = !active;
   $('progress-label').textContent = job.status === 'running'
     ? `${job.frames} of up to ${job.max_frames} frames · ${job.fps} frames/s`
-    : job.status === 'queued' ? 'Queued · waiting for the processing worker' : job.status === 'cancelling' ? 'Stopping the run…' : 'Receiving video…';
+    : job.status === 'queued' ? 'Queued · waiting for the processing worker' : job.status === 'cancelling' ? 'Stopping the run…' : 'Preparing analysis…';
   $('job-progress').max = job.max_frames;
   $('job-progress').value = job.frames;
   $('cancel').disabled = job.status === 'cancelling';
@@ -272,36 +270,3 @@ async function initialize() {
   } catch (error) {report(`Could not reach the backend. ${error.message}`);}
 }
 initialize();
-
-// Optional browser-agent integration. Uses the same actions as the visible UI.
-// Unsupported browsers simply retain the normal interface.
-if (document.modelContext?.registerTool) {
-  const lifecycle = new AbortController();
-  const register = (tool) => {
-    try {
-      Promise.resolve(document.modelContext.registerTool(tool, {signal: lifecycle.signal}))
-        .catch(() => {}); // Optional integration failure must not disable the app.
-    } catch { /* Browser may expose an incomplete experimental API. */ }
-  };
-  register({name: 'start_demo_analysis', title: 'Start synthetic video analysis',
-    description: 'Create a new backend analysis job using synthetic frames and select it in the workspace.',
-    inputSchema: {type: 'object', properties: {max_frames: {type: 'integer', minimum: 1, maximum: 600}}, required: ['max_frames'], additionalProperties: false},
-    annotations: {readOnlyHint: false, untrustedContentHint: false},
-    async execute(input) {
-      if (!input || Object.keys(input).some(key => key !== 'max_frames') || !Number.isInteger(input.max_frames) || input.max_frames < 1 || input.max_frames > 600) throw new Error('max_frames must be an integer from 1 to 600.');
-      if (state.starting) throw new Error('Another input is being submitted.');
-      $('frame-limit').value = String(input.max_frames);
-      return startRun();
-    }});
-  register({name: 'get_selected_analysis_status', title: 'Read selected analysis status',
-    description: 'Read current backend status and result counts for the selected run.',
-    inputSchema: {type: 'object', properties: {}, additionalProperties: false},
-    annotations: {readOnlyHint: true, untrustedContentHint: false},
-    async execute(input) {
-      if (!input || Object.keys(input).length) throw new Error('This tool takes an empty object.');
-      if (!state.job) return {selected: false};
-      const job = await request(`/api/jobs/${state.job.id}`);
-      return {id: job.id, status: job.status, frames: job.frames, rows: job.rows, error: job.error};
-    }});
-  window.addEventListener('pagehide', () => lifecycle.abort(), {once: true});
-}

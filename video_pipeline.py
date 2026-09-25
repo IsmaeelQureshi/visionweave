@@ -1,8 +1,8 @@
-"""Stream video through independent box and point adapters into a common CSV.
+"""Process synthetic frames through independent box and point adapters into a common CSV.
 
-Run: python video_pipeline.py --demo --output results/demo.csv
+Run: python video_pipeline.py --output results/demo.csv
 Demo adapters use color rules, require no weights, and are not trained models.
-Python 3.10+. See README.md for the public adapter contract and CSV schema.
+Python 3.10+. See README.md for setup and usage.
 """
 
 from __future__ import annotations
@@ -163,44 +163,6 @@ def demo_frames(count: int = 120) -> Iterator[Frame]:
         yield Frame(index, index / 30.0, np.asarray(image))
 
 
-def video_frames(path: Path, stride: int = 1, max_frames: int | None = None) -> Iterator[Frame]:
-    """Decode sequentially; preserve source frame indices when sampling.
-
-    Timestamps use index/FPS (constant-rate estimate). Missing FPS produces
-    blank timestamps. Variable-rate presentation timestamps are not supported.
-    """
-    if stride < 1 or (max_frames is not None and max_frames < 1):
-        raise ValueError("Stride and frame limit must be positive")
-    if not path.is_file():
-        raise FileNotFoundError(f"Input video does not exist: {path}")
-    try:
-        import cv2
-    except ImportError as exc:
-        raise RuntimeError("Video input requires opencv-python-headless; install requirements-video.txt") from exc
-    cap = cv2.VideoCapture(str(path))
-    try:
-        if not cap.isOpened():
-            raise ValueError(f"Cannot open video: {path}")
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        valid_fps = math.isfinite(fps) and fps > 0
-        if not valid_fps:
-            LOGGER.warning("No usable frame rate; CSV timestamps will be blank")
-        index = emitted = 0
-        while max_frames is None or emitted < max_frames:
-            ok, bgr = cap.read()
-            if not ok:
-                break
-            if index % stride == 0:
-                timestamp = index / fps if valid_fps else None
-                yield Frame(index, timestamp, cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
-                emitted += 1
-            index += 1
-        if emitted == 0:
-            raise ValueError("Video contains no decodable frames")
-    finally:
-        cap.release()
-
-
 def prediction_row(frame: Frame, adapter: str, number: int,
                    prediction: Prediction, transform: Transform) -> dict:
     """Validate adapter outputs, invert padding/resize, and normalize results."""
@@ -310,23 +272,15 @@ def positive_int(value: str) -> int:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--demo", action="store_true", help="generate a synthetic geometric scene")
-    source.add_argument("--video", type=Path, help="local video to process with demo adapters")
     parser.add_argument("--output", type=Path, default=Path("results/detections.csv"))
     parser.add_argument("--max-frames", type=positive_int, help="maximum sampled frames (demo default: 120)")
-    parser.add_argument("--stride", type=positive_int, default=1, help="process every Nth video frame")
     parser.add_argument("--progress-every", type=positive_int, default=30)
     parser.add_argument("--overwrite", action="store_true", help="replace existing output after success")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    if args.demo and args.stride != 1:
-        parser.error("--stride applies to --video only")
-    if args.video and args.video.resolve() == args.output.resolve():
-        parser.error("Input video and output CSV must be different files")
     try:
         LOGGER.info("Using deterministic demo adapters; no trained models or weights")
-        frames = demo_frames(args.max_frames or 120) if args.demo else video_frames(args.video, args.stride, args.max_frames)
+        frames = demo_frames(args.max_frames or 120)
         process_frames(frames, build_detectors(), args.output,
                        overwrite=args.overwrite, progress_every=args.progress_every)
         return 0

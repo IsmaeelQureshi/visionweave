@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import importlib.util
 import json
 import logging
 import math
@@ -17,11 +16,9 @@ from pathlib import Path
 
 from PIL import Image
 
-from video_pipeline import build_detectors, demo_frames, process_frames, video_frames
+from video_pipeline import build_detectors, demo_frames, process_frames
 
 MAX_FRAMES = 600
-MAX_UPLOAD = 100 * 1024 * 1024
-MAX_DIMENSION = 4096
 TERMINAL = {"completed", "failed", "cancelled"}
 
 
@@ -90,13 +87,8 @@ class JobStore:
                 db.execute("UPDATE jobs SET data=? WHERE id=?", (json.dumps(data, allow_nan=False), job_id))
             return data
 
-    def create(self, *, kind="demo", max_frames=120, stride=1, name="Synthetic shapes"):
-        if kind not in {"demo", "video"}:
-            raise JobError("Choose a demo or video input.")
+    def create(self, *, max_frames=120):
         bounded_int(max_frames, "Frame limit")
-        bounded_int(stride, "Frame sampling", high=30)
-        if kind == "video" and importlib.util.find_spec("cv2") is None:
-            raise JobError("Video uploads require OpenCV. Install requirements-video.txt and restart the server.")
         with self.lock:
             if self.stopping.is_set():
                 raise JobError("The server is shutting down.")
@@ -105,9 +97,9 @@ class JobStore:
                 if active >= 3:
                     raise JobError("Three runs are already queued. Wait for a run to finish.")
                 job_id = uuid.uuid4().hex
-                data = dict(id=job_id, name=str(name)[:120], kind=kind,
-                            status="uploading" if kind == "video" else "queued",
-                            created_at=time.time(), max_frames=max_frames, stride=stride,
+                data = dict(id=job_id, name="Synthetic shapes", kind="demo",
+                            status="queued",
+                            created_at=time.time(), max_frames=max_frames,
                             frames=0, rows=0, boxes=0, points=0, empty=0,
                             elapsed_sec=0, fps=0, error=None, previews=[])
                 (self.root / job_id).mkdir()
@@ -132,8 +124,7 @@ class JobStore:
 
     def cleanup_incomplete(self, job_id):
         directory = self.root / job_id
-        for name in ("source.video", "detections.csv"):
-            (directory / name).unlink(missing_ok=True)
+        (directory / "detections.csv").unlink(missing_ok=True)
         for path in directory.glob(".pipeline-*.tmp"):
             path.unlink(missing_ok=True)
 
@@ -146,14 +137,12 @@ class JobStore:
             self.check_cancelled(job_id)
             job = self.update(job_id, status="running")
             interval = max(1, math.ceil(job["max_frames"] / 120))
-            source = demo_frames(job["max_frames"]) if job["kind"] == "demo" else video_frames(directory / "source.video", job["stride"], job["max_frames"])
+            source = demo_frames(job["max_frames"])
 
             def checked_frames():
                 try:
                     for frame in source:
                         self.check_cancelled(job_id)
-                        if max(frame.rgb.shape[:2]) > MAX_DIMENSION:
-                            raise JobError("Videos must be no larger than 4096 pixels on either side.")
                         yield frame
                 finally:
                     source.close()
@@ -188,10 +177,9 @@ class JobStore:
         except Exception as exc:
             logging.exception("Run %s failed", job_id)
             self.cleanup_incomplete(job_id)
-            message = str(exc) if isinstance(exc, (JobError, ValueError)) else "Processing failed. Check the server log and try another video."
+            message = str(exc) if isinstance(exc, (JobError, ValueError)) else "Processing failed. Check the server log and try again."
             self.update(job_id, status="failed", error=message, **counts, previews=previews)
         finally:
-            (directory / "source.video").unlink(missing_ok=True)
             with self.lock:
                 self.cancelled.discard(job_id)
 
