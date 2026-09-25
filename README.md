@@ -6,6 +6,8 @@ VisionWeave lets users **run video analysis, inspect frame-by-frame detections, 
 
 The included detectors use **deterministic color rules on synthetic shapes**, not trained AI models. They demonstrate the analysis workflow rather than general object-recognition accuracy.
 
+🔗 **Live Demo:** [Hosted on Vercel](https://visionweave-zeta.vercel.app/)
+
 ---
 
 ## 🚀 Key Features
@@ -51,7 +53,7 @@ The included detectors use **deterministic color rules on synthetic shapes**, no
 
 ## 🌐 Deployment
 
-**Browser Demo → Ready for Vercel**
+**Browser Demo → Hosted on Vercel**
 
 The `demo/` folder is a standalone static website. It generates frames and runs color-based detection in the visitor’s browser, without a Python backend, database, or API keys.
 
