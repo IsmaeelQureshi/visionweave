@@ -13,7 +13,7 @@ The included detectors use **deterministic color rules on synthetic shapes**, no
 ## 🚀 Key Features
 
 - **Interactive Browser Demo** → Analyze a generated scene directly in your browser, with no installation or uploads
-- **Local Video Analysis** → Upload videos to the Python app with optional OpenCV support
+- **Synthetic Analysis** → Run the generated scene through the local Python pipeline
 - **Frame Inspector** → Scrub through sampled frames and play previews with independent box and point overlays
 - **Analysis Controls** → Set frame limits, monitor processing progress, and cancel active runs
 - **Structured Results** → Browse paginated detections with source coordinates, normalized coordinates, and explicit empty results
@@ -98,14 +98,7 @@ python -m backend.server
 
 Open **http://127.0.0.1:8000** and click **Run analysis** to try the synthetic scene.
 
-To enable video uploads, stop the server, install the optional decoder, and restart:
-
-```bash
-python -m pip install -r requirements-video.txt
-python -m backend.server
-```
-
-Uploaded videos use the same color-based demo detectors. They do not perform general object recognition.
+The web interface accepts only the synthetic scene. Advanced video-file processing remains available through the command-line pipeline below.
 
 ### 3️⃣ Run the Standalone Browser Demo
 
@@ -129,7 +122,8 @@ Run the shared Python pipeline without the web interface:
 # Analyze the synthetic scene
 python video_pipeline.py --demo --output results/demo.csv
 
-# Analyze a video after installing the optional decoder
+# Optional command-line video processing
+python -m pip install -r requirements-video.txt
 python video_pipeline.py --video your_video.mp4 --stride 3 --max-frames 100 --output results/video.csv
 ```
 

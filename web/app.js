@@ -2,8 +2,7 @@
 const $ = (id) => document.getElementById(id);
 const terminal = new Set(['completed', 'failed', 'cancelled']);
 const state = {job: null, jobs: [], preview: 0, offset: 0, total: 0,
-  selection: 0, draw: 0, page: 0, timer: null, playing: null, uploading: false,
-  videoSupported: false, maxUpload: 100 * 1024 * 1024};
+  selection: 0, draw: 0, page: 0, timer: null, playing: null, starting: false};
 
 function report(message = '') {
   $('error').textContent = message;
@@ -22,14 +21,6 @@ function post(path, data = {}) {
   return request(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
 }
 
-function sourceChanged() {
-  const video = document.querySelector('input[name="source"]:checked').value === 'video';
-  $('demo-input').hidden = video;
-  $('video-input').hidden = !video;
-  $('stride').disabled = !video;
-  $('run-button').disabled = state.uploading || (video && !state.videoSupported);
-  $('video-file').disabled = !state.videoSupported;
-}
 
 function stopPlayback() {
   clearInterval(state.playing);
@@ -233,62 +224,29 @@ function poll(id, selection) {
   }, 600);
 }
 
-function upload(file, maxFrames, stride) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const query = new URLSearchParams({name: file.name, max_frames: String(maxFrames), stride: String(stride)});
-    xhr.open('POST', `/api/jobs/video?${query}`);
-    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-    xhr.setRequestHeader('X-VisionWeave-Request', '1');
-    xhr.timeout = 120000;
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) $('upload-progress').value = event.loaded / event.total * 100;
-    };
-    xhr.onerror = () => reject(new Error('Upload failed. Check that the local server is running.'));
-    xhr.ontimeout = () => reject(new Error('Upload timed out. Try a smaller video.'));
-    xhr.onload = () => {
-      try {
-        const data = JSON.parse(xhr.responseText);
-        if (xhr.status >= 400) reject(new Error(data.error || 'Upload failed.'));
-        else resolve(data);
-      } catch {reject(new Error('The server returned an unexpected response.'));}
-    };
-    xhr.send(file);
-  });
-}
 
-async function startRun(forceDemo = false) {
-  if (state.uploading) return;
+async function startRun() {
+  if (state.starting) return;
   report();
   const maxFrames = Number($('frame-limit').value);
-  const stride = Number($('stride').value);
   if (!Number.isInteger(maxFrames) || maxFrames < 1 || maxFrames > 600) throw new Error('Choose a frame limit between 1 and 600.');
-  if (!Number.isInteger(stride) || stride < 1 || stride > 30) throw new Error('Choose frame sampling between 1 and 30.');
-  const video = !forceDemo && document.querySelector('input[name="source"]:checked').value === 'video';
-  const file = $('video-file').files[0];
-  if (video && !state.videoSupported) throw new Error('Install the optional video dependencies to process uploaded videos.');
-  if (video && !file) throw new Error('Choose a video file first.');
-  if (video && (file.size > state.maxUpload || file.size === 0)) throw new Error('Choose a nonempty video smaller than 100 MB.');
-  state.uploading = true;
+  state.starting = true;
   $('run-button').disabled = $('quick-demo').disabled = true;
-  $('run-button').firstElementChild.textContent = video ? 'Uploading…' : 'Starting…';
-  $('upload-progress').hidden = !video; $('upload-progress').value = 0;
+  $('run-button').firstElementChild.textContent = 'Starting…';
   try {
-    const job = video ? await upload(file, maxFrames, stride) : await post('/api/jobs/demo', {max_frames: maxFrames});
+    const job = await post('/api/jobs/demo', {max_frames: maxFrames});
     await loadHistory();
     await selectJob(job.id);
     return {id: job.id, status: state.job.status};
   } finally {
-    state.uploading = false; sourceChanged();
+    state.starting = false; $('run-button').disabled = false;
     $('quick-demo').disabled = false;
     $('run-button').firstElementChild.textContent = 'Run analysis';
-    $('upload-progress').hidden = true;
   }
 }
 
-document.querySelectorAll('input[name="source"]').forEach(input => input.addEventListener('change', sourceChanged));
 $('run-form').addEventListener('submit', (event) => {event.preventDefault(); startRun().catch(error => report(error.message));});
-$('quick-demo').addEventListener('click', () => startRun(true).catch(error => report(error.message)));
+$('quick-demo').addEventListener('click', () => startRun().catch(error => report(error.message)));
 $('refresh').addEventListener('click', async () => {
   try {report(); await loadHistory(); if (state.job) await selectJob(state.job.id);}
   catch (error) {report(error.message);}
@@ -309,10 +267,6 @@ for (const [id, delta] of [['previous', -20], ['next', 20]]) $(id).addEventListe
 
 async function initialize() {
   try {
-    const health = await request('/api/health');
-    state.videoSupported = health.video_supported; state.maxUpload = health.max_upload_bytes;
-    $('video-support').textContent = health.video_supported ? 'Video decoding is available.' : 'Video upload is unavailable until you install requirements-video.txt. The synthetic demo is ready.';
-    sourceChanged();
     await loadHistory();
     if (state.jobs.length) await selectJob(state.jobs[0].id);
   } catch (error) {report(`Could not reach the backend. ${error.message}`);}
@@ -335,11 +289,9 @@ if (document.modelContext?.registerTool) {
     annotations: {readOnlyHint: false, untrustedContentHint: false},
     async execute(input) {
       if (!input || Object.keys(input).some(key => key !== 'max_frames') || !Number.isInteger(input.max_frames) || input.max_frames < 1 || input.max_frames > 600) throw new Error('max_frames must be an integer from 1 to 600.');
-      if (state.uploading) throw new Error('Another input is being submitted.');
-      document.querySelector('input[name="source"][value="demo"]').checked = true;
+      if (state.starting) throw new Error('Another input is being submitted.');
       $('frame-limit').value = String(input.max_frames);
-      sourceChanged();
-      return startRun(true);
+      return startRun();
     }});
   register({name: 'get_selected_analysis_status', title: 'Read selected analysis status',
     description: 'Read current backend status and result counts for the selected run.',

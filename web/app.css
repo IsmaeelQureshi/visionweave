@@ -6,3 +6,5 @@
 @media(prefers-reduced-motion:no-preference){.button,.history-item{transition:background .15s ease}.metrics strong{transition:color .15s ease}}
 
 .run-heading>div{min-width:0}
+
+.form-grid{grid-template-columns:1fr}

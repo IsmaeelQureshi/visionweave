@@ -21,27 +21,15 @@
         <h1>From video<br>to structured data.</h1>
         <p class="intro">Run an analysis, inspect predictions, and take your results with you.</p>
         <form id="run-form">
-          <fieldset class="source-picker"><legend class="sr-only">Input source</legend>
-            <label><input type="radio" name="source" value="demo" checked><span>Synthetic demo</span></label>
-            <label><input type="radio" name="source" value="video"><span>Your video</span></label>
-          </fieldset>
           <div id="demo-input" class="input-card">
             <div class="scene-label"><span class="shape-icon" aria-hidden="true">▣ ◉</span><span class="tag">READY TO RUN</span></div>
             <strong>Moving shapes</strong>
             <p>A red region and a green marker. Includes frames with missing detections.</p>
           </div>
-          <div id="video-input" class="input-card" hidden>
-            <label for="video-file" class="file-label">Choose a video</label>
-            <input id="video-file" type="file" accept="video/mp4,video/quicktime,video/x-msvideo,video/webm,.mkv">
-            <p>MP4, MOV, AVI, WebM or MKV · up to 100 MB</p>
-            <p id="video-support" class="hint"></p>
-          </div>
           <div class="form-grid">
             <label for="frame-limit">Frame limit<input id="frame-limit" type="number" min="1" max="600" value="120" required></label>
-            <label for="stride">Every Nth frame<input id="stride" type="number" min="1" max="30" value="1" required disabled></label>
           </div>
           <button class="button primary" id="run-button" type="submit"><span>Run analysis</span><span aria-hidden="true">↗</span></button>
-          <progress id="upload-progress" value="0" max="100" hidden aria-label="Upload progress"></progress>
           <p id="error" class="error" role="alert" hidden></p>
         </form>
         <div class="adapter-note"><span class="note-icon" aria-hidden="true">i</span><p><strong>Demo adapters enabled</strong><br>Color-based rules show the workflow. They aren’t trained object-recognition models.</p></div>
@@ -54,7 +42,7 @@
     </aside>
     <div class="main-panel">
       <section class="run-heading">
-        <div><p class="eyebrow">02 / ANALYZE</p><h2 id="run-title">Analysis workspace</h2><p id="run-subtitle" class="muted">Start with the synthetic scene, or bring your own video.</p></div>
+        <div><p class="eyebrow">02 / ANALYZE</p><h2 id="run-title">Analysis workspace</h2><p id="run-subtitle" class="muted">Run the synthetic scene to inspect both detectors in action.</p></div>
         <span id="status" class="status idle" role="status">Ready</span>
       </section>
       <div id="progress-panel" class="progress-panel" hidden>
